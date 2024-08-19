@@ -28,6 +28,14 @@ NX = 4
 NY = 4
 # discount
 GAMMA = 1.0
+# actions
+actions = {
+    0 : (0,-1), # up
+    1 : (0,+1), # down
+    2 : (+1,0), # right
+    3 : (-1,0), # left
+}
+NUM_ACTIONS = len(actions)
 
 # --- basic classes --------------------------------------------------------------------------
 
@@ -38,6 +46,7 @@ class ValueFunction():
     """
     
     def __init__(self, nx=NX, ny=NY, value_function=None):
+        assert 0<nx and 0<ny and isinstance(nx,int) and isinstance(ny, int), f"Erreur paramètres constructeur ValueFunction"
         self.nx = nx
         self.ny = ny
         if value_function is None:
@@ -62,4 +71,231 @@ class ValueFunction():
         
     def __str__(self):
         msg = f"Objet ValueFunction taille {self.nx} x {self.ny}"
-        return msg       
+        return msg
+
+# - Policy -----------------
+
+class Policy():
+    """Policy class. Stores probabilities of each action (up, down, right, left) per state.
+    """
+    
+    def __init__(self, nx=NX, ny=NY, policy=None):
+        assert 0<nx and 0<ny and isinstance(nx,int) and isinstance(ny, int), f"Erreur paramètres constructeur Policy"
+        self.nx = nx
+        self.ny = ny
+        if policy is None:
+            self.policy = np.full(shape=(self.nx, self.ny, NUM_ACTIONS), fill_value=1/NUM_ACTIONS)  # default is equiprobable random policy
+        else:
+            self.policy = policy
+            
+    def get(self, x,y):
+        assert (0 <= x < self.nx) and (0 <= y < self.ny), "erreur : hors grid dans Policy.get()"
+        return self.policy[x,y]
+    
+    def update(self, x,y, value):
+        # value is a np.array shape NUM_ACTIONS x 1
+        assert (0 <= x < self.nx) and (0 <= y < self.ny), "erreur : hors grid dans Policy.update()"
+        self.policy[x,y] = value
+        
+    def display(self):
+        print(self.policy)
+
+    def __repr__(self):
+        msg = f"Objet Policy taille {self.nx} x {self.ny} x {NUM_ACTIONS} - shape = {self.policy.shape}"
+        return msg
+        
+    def __str__(self):
+        msg = f"Objet Policy taille {self.nx} x {self.ny} x {NUM_ACTIONS} - shape = {self.policy.shape}"
+        return msg
+        
+# -- MDP Dynamics ----------------
+
+class MDPDynamics():
+    """Code the dynamics of the MDP. 
+    For GridWorld, this is a deterministic dynamic : the next state is reached with probability one
+    """
+    
+    def __init__(self, actions=actions):
+        self.actions = actions
+        
+    def step(self, x,y, action_number):
+        """calculate next step
+
+        Args:
+            x, y (ints) : coordinates of the current state
+            action_number (int): code of the action
+            
+        Returns :
+            x_new, y_new (ints): coordinates of the state being reached
+            reward (int): reward associated to the move
+            end (boolean) : True if terminal state is reached
+        """
+        step_x, step_y = actions.get(action_number)
+        
+        x_new = x + step_x
+        if x_new < 0: x_new = 0
+        if x_new >= NX: x_new = NX-1
+        
+        y_new = y + step_y
+        if y_new < 0: y_new = 0
+        if y_new >= NY: y_new = NY-1
+        
+        if (x_new, y_new)==(0,0) or (x_new,y_new)==(NX-1,NY-1):
+            end = True
+            reward = -1
+        else:
+            end = False
+            reward = -1
+        
+        return x_new, y_new, reward, end
+    
+    def __repr__(self):
+        msg = f"Objet MDPDynamics. Actions = {self.actions}"
+        return msg
+    
+    def __str__(self):
+        msg = f"Objet MDPDynamics. Actions = {self.actions}"
+        return msg
+    
+# ------------------------------------------------------------------------------------------------------
+# --- Policy Evaluation --------------------------------------------------------------------------------
+# ------------------------------------------------------------------------------------------------------
+
+class IterativePolicyEvaluation():
+    """Calculate one iteration step of a value function towards the optimal value function v*
+    """
+    # THETA = 1e-6 # threshold to stop iterating
+    dynamics = MDPDynamics()
+    
+    def __init__(self, policy, vf_old=None):
+        """Constructor, to evaluate a given <policy> iteratively starting from a ValueFunction <v_start>
+
+        Args:
+            policy (Policy): object Policy to evaluate.
+            v_start (ValueFunction, optional): ValueFunction to use as a start of the algorithm. Defaults to None, in which case 0 is used
+        """
+        # policy to evaluate
+        self.policy = policy
+        # value function to use as a first iteration
+        if vf_old is None:
+            self.vf_old = ValueFunction()  # the default ValueFunction is 0 for all states
+        else:
+            self.vf_old = vf_old
+        # store first iteration for record
+        self.vf_start = self.vf_old
+        # value function calculation for policy, place holder
+        self.vf_new = ValueFunction()
+            
+    def evaluation_step(self):
+        """Return one step evaluation of the policy"""
+        for x in range(NX):
+            for y in range(NY):
+                # state s is (x,y)
+                if (x,y) != (0,0) and (x,y) != (NX-1,NY-1):  # update value function for non terminal states only
+                    for action_number in actions.keys():
+                        # action is action_number
+                        # get s' and r
+                        x_new, y_new, reward, end = self.dynamics.step(x,y,action_number)
+                        # update vf_new(x,y)
+                        self.vf_new.vf[x,y] += self.policy.get(x,y)[action_number] * (reward + GAMMA * self.vf_old.vf[x_new, y_new])
+        # calculate Norm 2 between the update and the original
+        delta_vf = np.linalg.norm(self.vf_new.vf - self.vf_old.vf)
+        
+        return self.vf_new, delta_vf
+
+# ----------------------------------------------------------------------------------------------------------    
+# --- Calcul de la value function optimale v* sans optimisation de la policy -------------------------------
+# ----------------------------------------------------------------------------------------------------------
+        
+iter_counter = 0
+THETA = 1e-12
+delta_vf = 2 * THETA
+vf_old = ValueFunction()   # instantiate a ValueFunction equal to zero for all states
+random_policy = Policy()
+ipe = IterativePolicyEvaluation(random_policy)
+
+print(f"Value Function avant itération :")
+vf_old.display()
+
+while delta_vf > THETA:
+    iter_counter += 1
+    vf_evaluation, delta_vf = ipe.evaluation_step()
+    if iter_counter % 100 == 0:
+        print(f"Iteration {iter_counter}")
+        print(f"Value Function après calcul :")
+        vf_evaluation.display()
+        print(f"Norme 2 = {delta_vf:.7f}")
+    ipe.vf_old = vf_evaluation
+    ipe.vf_new = ValueFunction()
+
+print("\n")
+print(f"Calcul de la value function optimale à la précision {THETA} après {iter_counter} itérations")
+vf_evaluation.display()
+
+
+# --------------------------------------------------------------------------------------------------------------
+# --- Policy Improvement ---------------------------------------------------------------------------------------
+# --------------------------------------------------------------------------------------------------------------
+
+class PolicyImprovement():
+    """Given a policy and a value function, return an improved policy, or signals the policy is already optimal
+    """
+    
+    dynamics = MDPDynamics()
+    
+    def __init__(self, policy, value_function):
+        """instantiate the object with a given policy and a given value_function
+
+        Args:
+            policy (Policy): the starting policy, to improve
+            value_function (ValueFunction): the value function to use to improve the policy
+        """
+        self.start_policy = policy
+        self.new_policy = Policy()
+        
+        self.start_vf = value_function
+        
+    def improvement_step(self):
+        """logic to improve the policy. Returns optimal=True if policy already optimal
+        """
+        # optimal = False
+        # for x in range(NX):
+        #     for y in range(NY):
+        #         # state s is (x,y)
+        #         if (x,y) != (0,0) and (x,y) != (NX-1,NY-1):  # update policy for non terminal states only
+        #             # first, find out all four q_values for each of the four actions
+        #             current_potential_q_values = np.zeros(shape=NUM_ACTIONS)
+        #             for action_number in actions:
+        #                 x_new, y_new, reward, end = dynamics.step(x,y,action_number)
+        #                 q_value = self.start_vf.get(x_new, y_new)
+        #                 current_potential_q_values[action_number] = q_value
+        pass
+                    
+
+
+
+
+# -- tests ---
+
+# --- MDP Dynamics -----------------------------------------
+
+# dyn = MDPDynamics()
+
+# print(dyn)
+
+# positions = [
+#     [0,0], [0,1], [1,1], [3,3], [2,3]
+# ]
+
+# for position in positions:
+#     for action_code in actions.keys():
+#         x_new, y_new, reward, end = dyn.step(position[0], position[1], action_code)
+#         print(f"Step : depuis {position[0], position[1]} avec action {action_code} - Résultat : nouvelle position {x_new, y_new}, fini = {end}, reward = {reward}")
+
+# ---- Policy ------
+
+# pi = Policy()
+
+# print(pi)
+
+# pi.display()
