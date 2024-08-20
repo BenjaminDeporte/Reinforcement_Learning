@@ -297,8 +297,8 @@ class PolicyImprovement():
                     idx = np.array([ 1 if current_potential_q_values[i]==v_max else 0 for i in actions.keys() ])  # 1 for action getting max value
                     new_pol = idx / np.sum(idx) # normalize to get probabilities
                     self.new_policy.update(x,y,new_pol)  # write new policy
-                    if self.new_policy != self.start_policy:
-                        optimal = False   # current policy is not optimal if there is a change
+                    if not np.array_equal(self.new_policy.get(x,y), self.start_policy.get(x,y)):
+                        optimal = False   # current policy is not optimal if a change has just been calculated
                         
         return optimal, self.new_policy
         
@@ -328,7 +328,54 @@ class PolicyImprovement():
 # --- Policy Iteration --------------------------------------------------------------------------------------------
 # -----------------------------------------------------------------------------------------------------------------
 
-# CODE HERE
+old_policy = Policy()   # random policy to start
+ipe = IterativePolicyEvaluation(old_policy)
+old_value_function, delta_vf = ipe.evaluation_step()
+
+print(f"Point de départ :")
+print("Policy")
+print(old_policy.get_graphic_display())
+print(f"VF evaluation (one step):")
+old_value_function.display()
+
+iter_ctr = 0
+optimal = False
+
+THETA = 1e-12
+delta_vf = 2 * THETA
+
+while optimal is False:
+    iter_ctr += 1
+    print(f"Iteration {iter_ctr}")
+    
+    # improve policy based on last calculated value function
+    policy_improvement = PolicyImprovement(old_policy, old_value_function)
+    optimal, new_policy = policy_improvement.improvement_step()
+    
+    # iterative policy evaluation of the new policy : gives new value function
+    iter_counter_pe = 0
+    ipe = IterativePolicyEvaluation(policy=new_policy, vf_old=old_value_function)
+    while delta_vf > THETA:
+        iter_counter_pe += 1
+        vf_evaluation, delta_vf = ipe.evaluation_step()
+        # if iter_counter % 100 == 0:
+        #     print(f"Iteration {iter_counter}")
+        #     print(f"Value Function après calcul :")
+        #     vf_evaluation.display()
+        #     print(f"Norme 2 = {delta_vf:.7f}")
+        ipe.vf_old = vf_evaluation
+        ipe.vf_new = ValueFunction()
+    new_value_function = ipe.vf_old
+    
+    # donne des nouvelles
+    print(f"Optimality reached : {optimal}")
+    print(f"New Policy:")
+    print(new_policy.get_graphic_display())
+    print(f"New value function :")
+    new_value_function.display()
+    # updates
+    old_value_function = new_value_function
+    old_policy = new_policy
 
 
 
