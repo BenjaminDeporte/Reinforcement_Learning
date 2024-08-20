@@ -78,6 +78,12 @@ class ValueFunction():
 class Policy():
     """Policy class. Stores probabilities of each action (up, down, right, left) per state.
     """
+    action_to_str = {
+        0 : "U",
+        1 : "D",
+        2 : "R",
+        3 : "L"
+    }
     
     def __init__(self, nx=NX, ny=NY, policy=None):
         assert 0<nx and 0<ny and isinstance(nx,int) and isinstance(ny, int), f"Erreur paramètres constructeur Policy"
@@ -99,6 +105,19 @@ class Policy():
         
     def display(self):
         print(self.policy)
+        
+    def get_graphic_display(self):
+        chars = np.full(shape=(self.nx, self.ny), dtype=object, fill_value="")
+        for x in range(self.nx):
+            for y in range(self.ny):
+                local = self.get(x,y) # get local policy
+                msg = ""
+                for action_number in actions.keys():
+                    value = local[action_number]
+                    msg = msg + self.action_to_str.get(action_number) + f"({value:.2f})"
+                chars[x,y] = msg
+        return np.transpose(chars)  # transpose because of the x,y coordinates convention
+                
 
     def __repr__(self):
         msg = f"Objet Policy taille {self.nx} x {self.ny} x {NUM_ACTIONS} - shape = {self.policy.shape}"
@@ -207,30 +226,30 @@ class IterativePolicyEvaluation():
 # --- Calcul de la value function optimale v* sans optimisation de la policy -------------------------------
 # ----------------------------------------------------------------------------------------------------------
         
-iter_counter = 0
-THETA = 1e-12
-delta_vf = 2 * THETA
-vf_old = ValueFunction()   # instantiate a ValueFunction equal to zero for all states
-random_policy = Policy()
-ipe = IterativePolicyEvaluation(random_policy)
+# iter_counter = 0
+# THETA = 1e-12
+# delta_vf = 2 * THETA
+# vf_old = ValueFunction()   # instantiate a ValueFunction equal to zero for all states
+# random_policy = Policy()
+# ipe = IterativePolicyEvaluation(random_policy)
 
-print(f"Value Function avant itération :")
-vf_old.display()
+# print(f"Value Function avant itération :")
+# vf_old.display()
 
-while delta_vf > THETA:
-    iter_counter += 1
-    vf_evaluation, delta_vf = ipe.evaluation_step()
-    if iter_counter % 100 == 0:
-        print(f"Iteration {iter_counter}")
-        print(f"Value Function après calcul :")
-        vf_evaluation.display()
-        print(f"Norme 2 = {delta_vf:.7f}")
-    ipe.vf_old = vf_evaluation
-    ipe.vf_new = ValueFunction()
+# while delta_vf > THETA:
+#     iter_counter += 1
+#     vf_evaluation, delta_vf = ipe.evaluation_step()
+#     if iter_counter % 100 == 0:
+#         print(f"Iteration {iter_counter}")
+#         print(f"Value Function après calcul :")
+#         vf_evaluation.display()
+#         print(f"Norme 2 = {delta_vf:.7f}")
+#     ipe.vf_old = vf_evaluation
+#     ipe.vf_new = ValueFunction()
 
-print("\n")
-print(f"Calcul de la value function optimale à la précision {THETA} après {iter_counter} itérations")
-vf_evaluation.display()
+# print("\n")
+# print(f"Calcul de la value function optimale à la précision {THETA} après {iter_counter} itérations")
+# vf_evaluation.display()
 
 
 # --------------------------------------------------------------------------------------------------------------
@@ -258,24 +277,75 @@ class PolicyImprovement():
     def improvement_step(self):
         """logic to improve the policy. Returns optimal=True if policy already optimal
         """
-        # optimal = False
-        # for x in range(NX):
-        #     for y in range(NY):
-        #         # state s is (x,y)
-        #         if (x,y) != (0,0) and (x,y) != (NX-1,NY-1):  # update policy for non terminal states only
-        #             # first, find out all four q_values for each of the four actions
-        #             current_potential_q_values = np.zeros(shape=NUM_ACTIONS)
-        #             for action_number in actions:
-        #                 x_new, y_new, reward, end = dynamics.step(x,y,action_number)
-        #                 q_value = self.start_vf.get(x_new, y_new)
-        #                 current_potential_q_values[action_number] = q_value
-        pass
-                    
+        
+        optimal = True
+        
+        for x in range(NX):
+            for y in range(NY):
+                # state s is (x,y)
+                if (x,y) != (0,0) and (x,y) != (NX-1,NY-1):  # update policy for non terminal states only
+                    # first, find out all four q_values for each of the four actions
+                    current_potential_q_values = np.zeros(shape=NUM_ACTIONS)
+                    for action_number in actions:
+                        # nouvel état suite à action
+                        x_new, y_new, reward, end = self.dynamics.step(x,y,action_number)
+                        # value function au nouvel état
+                        v_value = self.start_vf.get(x_new, y_new)
+                        # calcul q_value correspondante
+                        current_potential_q_values[action_number] = reward + GAMMA * v_value
+                    v_max = np.max(current_potential_q_values)
+                    idx = np.array([ 1 if current_potential_q_values[i]==v_max else 0 for i in actions.keys() ])  # 1 for action getting max value
+                    new_pol = idx / np.sum(idx) # normalize to get probabilities
+                    self.new_policy.update(x,y,new_pol)  # write new policy
+                    if self.new_policy != self.start_policy:
+                        optimal = False   # current policy is not optimal if there is a change
+                        
+        return optimal, self.new_policy
+        
+# ------------------------------------------------------------------------------------------------------------------
+# --- Policy Improvement (testing one step) ------------------------------------------------------------------------
+# ------------------------------------------------------------------------------------------------------------------
+
+# policy = Policy() # random policy to start
+
+# ipe = IterativePolicyEvaluation(policy)
+# value_function, _ = ipe.evaluation_step()   # calculate value function for random policy
+
+# print(f"Start :")
+# print(f"Policy = ")
+# print(policy.get_graphic_display())
+# print(f"Value function :")
+# value_function.display()
+
+# policy_improvement = PolicyImprovement(policy, value_function)  # starting point : random policy with associated value function
+# optimal, new_policy = policy_improvement.improvement_step()
+
+# print(f"Stop :")
+# print(f"Policy = ")
+# print(new_policy.get_graphic_display())
+
+# -----------------------------------------------------------------------------------------------------------------
+# --- Policy Iteration --------------------------------------------------------------------------------------------
+# -----------------------------------------------------------------------------------------------------------------
+
+# CODE HERE
 
 
 
 
-# -- tests ---
+
+
+
+
+
+
+
+
+
+
+
+
+# -- unitary tests ------------------------------------------------------------------------------------------------
 
 # --- MDP Dynamics -----------------------------------------
 
