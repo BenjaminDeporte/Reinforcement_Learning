@@ -116,8 +116,7 @@ class Policy():
                     value = local[action_number]
                     msg = msg + self.action_to_str.get(action_number) + f"({value:.2f})"
                 chars[x,y] = msg
-        return np.transpose(chars)  # transpose because of the x,y coordinates convention
-                
+        return np.transpose(chars)  # transpose because of the x,y coordinates convention 
 
     def __repr__(self):
         msg = f"Objet Policy taille {self.nx} x {self.ny} x {NUM_ACTIONS} - shape = {self.policy.shape}"
@@ -181,7 +180,7 @@ class MDPDynamics():
 # ------------------------------------------------------------------------------------------------------
 
 class IterativePolicyEvaluation():
-    """Calculate one iteration step of a value function towards the optimal value function v*
+    """Calculate one iteration step of a value function towards the policy value function v_pi
     """
     # THETA = 1e-6 # threshold to stop iterating
     dynamics = MDPDynamics()
@@ -223,7 +222,7 @@ class IterativePolicyEvaluation():
         return self.vf_new, delta_vf
 
 # ----------------------------------------------------------------------------------------------------------    
-# --- Calcul de la value function optimale v* sans optimisation de la policy -------------------------------
+# --- Calcul de la value function de la policy v_pi (sans optimisation de la policy)------------------------
 # ----------------------------------------------------------------------------------------------------------
         
 # iter_counter = 0
