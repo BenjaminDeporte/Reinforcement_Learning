@@ -12,8 +12,8 @@ import timeit
 
 #--- parameters ---------------------------------------------------
 
-MAX_CARS = 3 # maximum number of cars at each rental location
-MAX_TRANSFERTS = 2  # maximum number of cars that can be moved overnight
+MAX_CARS = 4 # maximum number of cars at each rental location
+MAX_TRANSFERTS = 3  # maximum number of cars that can be moved overnight
 GAMMA = 0.9 # discount
 LAMBDA_CUSTOMERS_1 = 3  # Poisson law parameter for customer requests at location 1
 LAMBDA_CUSTOMERS_2 = 4  # Poisson law parameter for customer requests at location 2
@@ -42,52 +42,52 @@ returns_2 = np.array([ n*np.log(LAMBDA_RETURNS_2) - np.log(math.factorial(n))-LA
 #--- class for state space -----------------------------------------------------
 #-------------------------------------------------------------------------------
 
-class StatesSpace():
-    """Encapsulates states space as a N_CARS x N_CARS array, plus some display methods
-    Constructor requires n_cars maximum per location
-    """
+# class StatesSpace():
+#     """Encapsulates states space as a N_CARS x N_CARS array, plus some display methods
+#     Constructor requires n_cars maximum per location
+#     """
     
-    def __init__(self, max_cars=None):
-        """Create a StateSpace object, basically a np.array(n_cars x n_cars)
+#     def __init__(self, max_cars=None):
+#         """Create a StateSpace object, basically a np.array(n_cars x n_cars)
 
-        Args:
-            max_cars (_type_, optional): maximum number of cars per agency. Defaults to None.
-        """
-        if max_cars is None:
-            self._max_cars = MAX_CARS
-        else:
-            self._max_cars = max_cars
+#         Args:
+#             max_cars (_type_, optional): maximum number of cars per agency. Defaults to None.
+#         """
+#         if max_cars is None:
+#             self._max_cars = MAX_CARS
+#         else:
+#             self._max_cars = max_cars
             
-        # by convention : 
-        # -the numbers of cars at location #1 (end of business day) is the first coordinate
-        # -the numbers of cars at location #2 (end of business day) is the second coordinate
-        # ie : [n1, n2]
-        self._states = np.zeros((self.max_cars, self.max_cars), dtype=int)
+#         # by convention : 
+#         # -the numbers of cars at location #1 (end of business day) is the first coordinate
+#         # -the numbers of cars at location #2 (end of business day) is the second coordinate
+#         # ie : [n1, n2]
+#         self._states = np.zeros((self.max_cars, self.max_cars), dtype=int)
         
-    @property
-    def max_cars(self):
-        return self._max_cars
+#     @property
+#     def max_cars(self):
+#         return self._max_cars
     
-    @max_cars.setter
-    def max_cars(self, n):
-        self._max_cars = n
+#     @max_cars.setter
+#     def max_cars(self, n):
+#         self._max_cars = n
     
-    @property
-    def states(self):
-        return self._states
+#     @property
+#     def states(self):
+#         return self._states
     
-    @states.setter
-    def states(self, array_of_states):
-        self._states = array_of_states
+#     @states.setter
+#     def states(self, array_of_states):
+#         self._states = array_of_states
         
-    def display(self):
-        print (self.states)
+#     def display(self):
+#         print (self.states)
         
-    def __repr__(self):
-        return f"StateSpace object, size {self.max_cars} x {self.max_cars}"
+#     def __repr__(self):
+#         return f"StateSpace object, size {self.max_cars} x {self.max_cars}"
     
-    def __str__(self):
-        return f"StateSpace object, size {self.max_cars} x {self.max_cars}"
+#     def __str__(self):
+#         return f"StateSpace object, size {self.max_cars} x {self.max_cars}"
     
 #--- unitary test for StateSpace -----
 
@@ -102,44 +102,44 @@ class StatesSpace():
 #--- class for action space -----------------------------------------------------
 #--------------------------------------------------------------------------------
 
-class ActionsSpace():
-    """Ecapsulates data and methods regarding actions.
-    Constructor requires n_transferts, which is the maximum number of cars that can be moved overnight.
-    By defintion, the number of cars moved from location 1 to location 2 is counted positive.
-    """
+# class ActionsSpace():
+#     """Ecapsulates data and methods regarding actions.
+#     Constructor requires n_transferts, which is the maximum number of cars that can be moved overnight.
+#     By defintion, the number of cars moved from location 1 to location 2 is counted positive.
+#     """
     
-    def __init__(self, max_transferts=None):
-        """Create an action space object, basically a np.array(2*n_transferts+1)
+#     def __init__(self, max_transferts=None):
+#         """Create an action space object, basically a np.array(2*n_transferts+1)
 
-        Args:
-            max_transferts (_type_, optional): maximum number of cars that can be moved overnight. Defaults to None.
-        """
-        if max_transferts == None:
-            self._max_transferts = MAX_TRANSFERTS  # default value
-        else:
-            self._max_transferts = int(max_transferts)
+#         Args:
+#             max_transferts (_type_, optional): maximum number of cars that can be moved overnight. Defaults to None.
+#         """
+#         if max_transferts == None:
+#             self._max_transferts = MAX_TRANSFERTS  # default value
+#         else:
+#             self._max_transferts = int(max_transferts)
             
-        # actions vary from -max 
-        self._actions = np.array( [ n for n in range(-self._max_transferts, self._max_transferts+1)] )
+#         # actions vary from -max 
+#         self._actions = np.array( [ n for n in range(-self._max_transferts, self._max_transferts+1)] )
         
-    @property
-    def actions(self):
-        return self._actions
+#     @property
+#     def actions(self):
+#         return self._actions
     
-    @actions.setter
-    def actions(self, x):
-        self._actions = x
-        self._max_transferts = int((x.shape[0]-1)/2)
+#     @actions.setter
+#     def actions(self, x):
+#         self._actions = x
+#         self._max_transferts = int((x.shape[0]-1)/2)
         
-    @property
-    def max_transferts(self):
-        return self._max_transferts
+#     @property
+#     def max_transferts(self):
+#         return self._max_transferts
     
-    def __repr__(self):
-        return f"ActionSpace object, max transferts = {self.max_transferts}, values = {self.actions}"
+#     def __repr__(self):
+#         return f"ActionSpace object, max transferts = {self.max_transferts}, values = {self.actions}"
     
-    def __str__(self):
-        return f"ActionSpace object, max transferts = {self.max_transferts}, values = {self.actions}"
+#     def __str__(self):
+#         return f"ActionSpace object, max transferts = {self.max_transferts}, values = {self.actions}"
     
 #--- unitary tests for Action Space ------------------
 
@@ -249,7 +249,7 @@ class DeterministicPolicy():
     """
     
     THETA = 1e-6   # convergence criterion
-    IMPROVEMENT_THRESHOLD = 1e-6
+    IMPROVEMENT_THRESHOLD = 1e-9  # check improvement in two successive value functions
     
     # --- constructor ------------------------------------------------------------------------
     def __init__(self, actions_array=None):
@@ -395,7 +395,7 @@ class DeterministicPolicy():
         self._old_vf = np.zeros((MAX_CARS+1, MAX_CARS+1))
         # counting
         iteration_number = 1
-        print(f"starting policy evaluation")
+        # print(f"starting policy evaluation")
         # loop
         while convergence_criterion > self.THETA:
             # print(f"iteration number : {iteration_number} -----------------------------------")
@@ -404,8 +404,9 @@ class DeterministicPolicy():
             convergence_criterion = np.max(np.abs(self._old_vf - self._new_vf))
             self._old_vf = self._new_vf
             iteration_number += 1
-            # print(f"Norm inf convergence criterion = {convergence_criterion:.2e}")
+            print(f"Iteration {iteration_number} - Norm inf convergence criterion = {convergence_criterion:.2e}", end="\r")
         # iteration is complete
+        print()
         self._new_vf = self._old_vf
         self._policy_value_function = self._new_vf
         
@@ -452,6 +453,7 @@ class DeterministicPolicy():
                     if action < -n2: 
                         number_sweeps_performed += (MAX_CARS+1)**4
                         continue
+                    # calculate q_value of action considered
                     q_value = 0
                     # we consider only business rentals requests up to MAX_CARS
                     for B1 in range(MAX_CARS+1):
@@ -473,23 +475,30 @@ class DeterministicPolicy():
                                     q_value += np.exp(log_p) * ( reward + GAMMA * pvf[new_state[0], new_state[1]] )
                                     # update
                                     number_sweeps_performed += 1
-                                    # print(f"calculated {number_sweeps_performed} situations / {number_sweeps_to_perform}", end="\r")
+                                    print(f"calculated {number_sweeps_performed} situations / {number_sweeps_to_perform}", end="\r")
                     q_values[action+MAX_TRANSFERTS] = q_value
                 # find argmax q_values and check if better
                 max_q_value = np.max(q_values)
-                id_argmax = np.argmax(q_values)
-                action_max = id_argmax - MAX_TRANSFERTS
                 if max_q_value > current_vf + self.IMPROVEMENT_THRESHOLD:  
-                    # yes
-                    optimized = True
+                    # yes, there is a q_value better than the current value_function : improve policy !
+                    id_argmax = np.argmax(q_values)
+                    action_max = id_argmax - MAX_TRANSFERTS
                     new_policy[n1,n2] = action_max
-                                    
-        if optimized is True:
-            print(f"\nPolicy has improved")
+                    # signal that policy has been strictly improved
+                    optimized = True
+        print()
+        
+        # calculate infinite norm between the old and new value functions
+        gain = np.max(np.abs(new_policy - old_policy))
+        
+        # policy is considered improved if it has changed AND value function has increased above a threshold                                    
+        if (optimized is True and gain > self.IMPROVEMENT_THRESHOLD):
+            # print(f"\nPolicy has improved")
             self.actions = new_policy
         else:
-            print(f"\nPolicy is optimal")
-            
+            optimized = False
+            # print(f"\nPolicy is optimal")
+
         return optimized
         
     
@@ -545,19 +554,29 @@ dp = DeterministicPolicy()
 optimized = False
 iter = 1
 
-while True:
-    print(f"Iteration {iter}")
-    print("Current policy is:")
+print(f"--- Policy Iteration for Jack's Car Rental --------")
+print(f"Maximum number of cars at each location : {MAX_CARS}")
+print(f"Maximum number of transferts overnight : {MAX_TRANSFERTS}")
+print()
+
+with np.printoptions(precision=3, suppress=True):
+    while True:
+        print(f"\nIteration {iter}")
+        print("Current policy is:")
+        print(dp.actions)
+        print(f"Evaluating current policy (ie calculate policy's value function)...")
+        print(dp.policy_value_function)
+        print(f"... value function calculated")
+        print(f"Try to improve policy...")
+        optimized = dp._policy_improvement()
+        if optimized is False:
+            print(f"...Current policy is optimal")
+            break
+        print(f"... calculated a better policy")
+        iter += 1
+
+    print(f"\nEnd of iterations")
+    print(f"Optimal policy found")
     print(dp.actions)
-    print(f"Evaluate current policy (ie calculate policy's value function)")
+    print(f"Value function:")
     print(dp.policy_value_function)
-    print(f"Try to improve policy")
-    optimized = dp._policy_improvement()
-    if optimized is False:
-        break
-    iter += 1
-    
-print(f"Optimal policy found")
-print(dp.actions)
-print(f"Value function:")
-print(dp.policy_value_function)

@@ -1,0 +1,11 @@
+name: rl
+channels:
+  - defaults
+dependencies:
+  - numpy
+  - matplotlib
+  - pandas
+  - python
+  - gymnasium
+  - ipykernel
+prefix: /home/benjamin.deporte/.conda/envs/rl
