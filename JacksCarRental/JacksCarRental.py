@@ -12,8 +12,8 @@ import timeit
 
 #--- parameters ---------------------------------------------------
 
-MAX_CARS = 10  # maximum number of cars at each rental location
-MAX_TRANSFERTS = 5  # maximum number of cars that can be moved overnight
+MAX_CARS = 5 # maximum number of cars at each rental location
+MAX_TRANSFERTS = 3  # maximum number of cars that can be moved overnight
 GAMMA = 0.9 # discount
 LAMBDA_CUSTOMERS_1 = 3  # Poisson law parameter for customer requests at location 1
 LAMBDA_CUSTOMERS_2 = 4  # Poisson law parameter for customer requests at location 2
@@ -314,12 +314,19 @@ class DeterministicPolicy():
             print(f"action array got clipped when used to set a DeterministicPolicy")
             
     @property
-    def policy_value_function(self):
+    def policy_value_funtion(self):
+        """evaluate policy (= calculate policy value function), and return it
+        """
+        
+        if self._policy_value_function is None:
+            self._policy_evaluation()
+            
         return self._policy_value_function
     
-    @policy_value_function.setter
-    def policy_value_function(self):
-        raise NameError(f"Attempt to write directly a value function in DeterministicPolicy object")
+    
+    # @policy_value_function.setter
+    # def policy_value_function(self):
+    #     raise NameError(f"Attempt to write directly a value function in DeterministicPolicy object")
     
     # --- one policy evaluation step ------------------------------------------------------------------
     
@@ -369,7 +376,7 @@ class DeterministicPolicy():
                                 new_vf[n1,n2] = new_vf[n1,n2] + delta_vf
                                 # update
                                 number_sweeps_performed += 1
-                                print(f"performed {number_sweeps_performed} / {number_sweeps_to_perform}", end="\r")
+                                print(f"calculated {number_sweeps_performed} expected returns / {number_sweeps_to_perform}", end="\r")
                                 
         # at this point, one sweep has been performed and the next iteration of value function wrt old_vf has been computed in new_vf
         self._new_vf = new_vf
@@ -396,19 +403,10 @@ class DeterministicPolicy():
             convergence_criterion = np.max(np.abs(self._old_vf - self._new_vf))
             self._old_vf = self._new_vf
             iteration_number += 1
-            print(f"Linf convergence criterion = {convergence_criterion}")
+            print(f"Norm inf convergence criterion = {convergence_criterion:.2e}")
         # iteration is complete
         self._new_vf = self._old_vf
         self._policy_value_function = self._new_vf
-        
-    @property
-    def policy_value_funtion(self):
-        """evaluate policy (= calculate policy value function), and return it
-        """
-        
-        self._policy_evaluation()
-            
-        return self._policy_evaluation
     
     
 #------------------------------------------------------------------------------------------------------
@@ -444,9 +442,11 @@ class DeterministicPolicy():
 
 dp = DeterministicPolicy()
 
+print (f"premier accès")
 start = timeit.default_timer()
-dp._policy_evaluation()
+print(dp.policy_value_function)
 duration = timeit.default_timer() - start
 print(f"Policy evaluation done in {duration:.2f} seconds")
 
+print(f"deuxième accès")
 print(dp.policy_value_function)
