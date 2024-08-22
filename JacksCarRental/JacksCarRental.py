@@ -12,8 +12,8 @@ import timeit
 
 #--- parameters ---------------------------------------------------
 
-MAX_CARS = 5 # maximum number of cars at each rental location
-MAX_TRANSFERTS = 3  # maximum number of cars that can be moved overnight
+MAX_CARS = 3 # maximum number of cars at each rental location
+MAX_TRANSFERTS = 2  # maximum number of cars that can be moved overnight
 GAMMA = 0.9 # discount
 LAMBDA_CUSTOMERS_1 = 3  # Poisson law parameter for customer requests at location 1
 LAMBDA_CUSTOMERS_2 = 4  # Poisson law parameter for customer requests at location 2
@@ -249,6 +249,7 @@ class DeterministicPolicy():
     """
     
     THETA = 1e-6   # convergence criterion
+    IMPROVEMENT_THRESHOLD = 1e-6
     
     # --- constructor ------------------------------------------------------------------------
     def __init__(self, actions_array=None):
@@ -312,17 +313,17 @@ class DeterministicPolicy():
         sanitized = self._sanitize_actions()
         if sanitized:
             print(f"action array got clipped when used to set a DeterministicPolicy")
-            
+    
     @property
-    def policy_value_funtion(self):
-        """evaluate policy (= calculate policy value function), and return it
-        """
-        
-        if self._policy_value_function is None:
-            self._policy_evaluation()
+    def policy_value_function(self):
+        # if self._policy_value_function is None:
+        self._policy_evaluation()
             
         return self._policy_value_function
     
+    @policy_value_function.setter
+    def policy_value_function(self):
+        raise NameError(f"Attempt to write a policy evaluation directly in a DeterministicPolicy object")
     
     # @policy_value_function.setter
     # def policy_value_function(self):
@@ -376,7 +377,7 @@ class DeterministicPolicy():
                                 new_vf[n1,n2] = new_vf[n1,n2] + delta_vf
                                 # update
                                 number_sweeps_performed += 1
-                                print(f"calculated {number_sweeps_performed} expected returns / {number_sweeps_to_perform}", end="\r")
+                                # print(f"calculated {number_sweeps_performed} expected returns / {number_sweeps_to_perform}", end="\r")
                                 
         # at this point, one sweep has been performed and the next iteration of value function wrt old_vf has been computed in new_vf
         self._new_vf = new_vf
@@ -397,16 +398,100 @@ class DeterministicPolicy():
         print(f"starting policy evaluation")
         # loop
         while convergence_criterion > self.THETA:
-            print(f"iteration number : {iteration_number} -----------------------------------")
+            # print(f"iteration number : {iteration_number} -----------------------------------")
             # perform one step
             self._evaluation_step()
             convergence_criterion = np.max(np.abs(self._old_vf - self._new_vf))
             self._old_vf = self._new_vf
             iteration_number += 1
-            print(f"Norm inf convergence criterion = {convergence_criterion:.2e}")
+            # print(f"Norm inf convergence criterion = {convergence_criterion:.2e}")
         # iteration is complete
         self._new_vf = self._old_vf
         self._policy_value_function = self._new_vf
+        
+    # --- policy improvement --------------------------------------------------------------------------
+    
+    def _policy_improvement(self):
+        """Perform a one-step policy improvement of a current policy with an associated value function
+        """
+        
+        # get the value function of the policy (NB : assumed to be calculated already)
+        pvf = self._policy_value_function
+        
+        # inits
+        # get the current policy (ie action per state) and place holder for improved policy
+        # check feasibility of policy for every state
+        sanitized = self._sanitize_actions()
+        if sanitized is True:
+            print(f"Policy was sanitized (ie some tranferts were clipped) prior to policy improvement")
+        old_policy = self.actions
+        new_policy = np.zeros((MAX_CARS+1, MAX_CARS+1))
+        
+        # change flag
+        optimized = False
+        
+        # loop
+        # number of sweeps
+        number_sweeps_to_perform = (MAX_CARS+1)**6 * (2*MAX_TRANSFERTS+1)
+        number_sweeps_performed = 0
+        # perform ONE sweep
+        for n1 in range(MAX_CARS+1):
+            for n2 in range(MAX_CARS+1):
+                # get starting state
+                state = np.array([n1,n2])
+                # get current value function of the state and current action
+                current_vf = pvf[n1,n2]
+                current_action = old_policy[n1,n2]
+                # try all actions and calculate their q values
+                q_values = np.zeros(2*MAX_TRANSFERTS+1)
+                for action in range(-MAX_TRANSFERTS, +MAX_TRANSFERTS+1):
+                    # skip impossible actions
+                    if action > n1: 
+                        number_sweeps_performed += (MAX_CARS+1)**4
+                        continue
+                    if action < -n2: 
+                        number_sweeps_performed += (MAX_CARS+1)**4
+                        continue
+                    q_value = 0
+                    # we consider only business rentals requests up to MAX_CARS
+                    for B1 in range(MAX_CARS+1):
+                        # get log proba of having B1 requets according to the Poisson law
+                        log_pB1 = customers_1[B1] 
+                        for B2 in range(MAX_CARS+1):
+                            log_pB2 = customers_2[B2]  
+                            # consider only returns up to MAX_CARS
+                            for R1 in range(MAX_CARS+1):  
+                                log_pR1 = returns_1[R1] 
+                                for R2 in range(MAX_CARS+1):
+                                    log_pR2 = returns_2[R2]
+                                    # calculate total probability of all four events, assumed independent of course
+                                    log_p = log_pB1 + log_pB2 + log_pR1 + log_pR2
+                                    # calculate end state
+                                    daily_numbers = np.array([B1,B2,R1,R2])
+                                    new_state, reward = transition(state, action, daily_numbers)
+                                    # get q value for starting state and envisoned action
+                                    q_value += np.exp(log_p) * ( reward + GAMMA * pvf[new_state[0], new_state[1]] )
+                                    # update
+                                    number_sweeps_performed += 1
+                                    # print(f"calculated {number_sweeps_performed} situations / {number_sweeps_to_perform}", end="\r")
+                    q_values[action+MAX_TRANSFERTS] = q_value
+                # find argmax q_values and check if better
+                max_q_value = np.max(q_values)
+                id_argmax = np.argmax(q_values)
+                action_max = id_argmax - MAX_TRANSFERTS
+                if max_q_value > current_vf + self.IMPROVEMENT_THRESHOLD:  
+                    # yes
+                    optimized = True
+                    new_policy[n1,n2] = action_max
+                                    
+        if optimized is True:
+            print(f"\nPolicy has improved")
+            self.actions = new_policy
+        else:
+            print(f"\nPolicy is optimal")
+            
+        return optimized
+        
     
     
 #------------------------------------------------------------------------------------------------------
@@ -440,13 +525,39 @@ class DeterministicPolicy():
 
 # --- full evaluation -----------------------------------
 
+# dp = DeterministicPolicy()
+
+# print(dp.actions)
+
+# print (f"premier accès")
+# start = timeit.default_timer()
+# print(dp.policy_value_function)
+# duration = timeit.default_timer() - start
+# print(f"Policy evaluation done in {duration:.2f} seconds")
+
+# print(f"deuxième accès")
+# print(dp.policy_value_function)
+
+# --- policy improvement ------------------------------------------------
+
 dp = DeterministicPolicy()
 
-print (f"premier accès")
-start = timeit.default_timer()
-print(dp.policy_value_function)
-duration = timeit.default_timer() - start
-print(f"Policy evaluation done in {duration:.2f} seconds")
+optimized = False
+iter = 1
 
-print(f"deuxième accès")
+while True:
+    print(f"Iteration {iter}")
+    print("Current policy is:")
+    print(dp.actions)
+    print(f"Evaluate current policy (ie calculate policy's value function)")
+    print(dp.policy_value_function)
+    print(f"Try to improve policy")
+    optimized = dp._policy_improvement()
+    if optimized is False:
+        break
+    iter += 1
+    
+print(f"Optimal policy found")
+print(dp.actions)
+print(f"Value function:")
 print(dp.policy_value_function)
