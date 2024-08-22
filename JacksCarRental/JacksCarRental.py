@@ -12,7 +12,7 @@ import timeit
 
 #--- parameters ---------------------------------------------------
 
-MAX_CARS = 4 # maximum number of cars at each rental location
+MAX_CARS = 5 # maximum number of cars at each rental location
 MAX_TRANSFERTS = 3  # maximum number of cars that can be moved overnight
 GAMMA = 0.9 # discount
 LAMBDA_CUSTOMERS_1 = 3  # Poisson law parameter for customer requests at location 1
