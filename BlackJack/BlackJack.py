@@ -6,6 +6,7 @@ import numpy as np
 from copy import deepcopy
 import pickle
 import os
+import timeit
 
 #-----------------------------------------------------------------------------------------------
 #--- basic classes -----------------------------------------------------------------------------
@@ -373,8 +374,9 @@ class MCES():
     DRAW = 0
     
     # per default parameters
-    NUMBER_RUNS_PER_STATE_ACTION_PAIR = 100
-    NUMBER_RANDOM_STATE_ACTION_PAIRS = 1000
+    NUMBER_RUNS_PER_STATE_ACTION_PAIR = 300
+    NUMBER_RANDOM_STATE_ACTION_PAIRS = 500000
+    TOTAL =  NUMBER_RUNS_PER_STATE_ACTION_PAIR * NUMBER_RANDOM_STATE_ACTION_PAIRS
     
     def __init__(self, number_random_state_action_pairs=None, number_runs_per_state_action_pair=None, verbose=None):
         
@@ -425,10 +427,14 @@ class MCES():
         print(f"-------------------------------------------------")
         print(f"---- learning -----------------------------------")
         print(f"-------------------------------------------------")
-        print(f"-- sweeping {self.NUMBER_RANDOM_STATE_ACTION_PAIRS} action-state pairs ---")
+        print(f"-- sweeping {self.NUMBER_RANDOM_STATE_ACTION_PAIRS} action-state pairs, ---")
         print(f"--- {self.number_runs_per_state_action_pair} times each ---- ")
         print(f"-------------------------------------------------")
         print()
+        
+        ctr_iter = 0
+        # timeit
+        start = timeit.default_timer()
         
         # first loop : sweep through random action-state pairs
         for number_action_pair_state in range(self.number_random_state_action_pairs):
@@ -438,15 +444,40 @@ class MCES():
             # 0 is HIT, 1 is STICK
             first_action = global_rng.choice(2)
             list_returns = []
+            # check if player sum is below 12 - if yes, automatic HIT
+            below = (start_deck.player_sum <= 11)
+            auto_hits = False
+            while below:
+                auto_hits = True
+                start_deck._draw_player()
+                if self.verbose:
+                    print(f"Player sum below 11, drew another card")
+                below = (start_deck.player_sum <= 11)
+                new_start_player_sum = start_deck.player_sum   # save for new reference point
+            if self.verbose:
+                if auto_hits == False:
+                    print(f"No auto hit")
+                else:
+                    print(f"Auto hits were performed")
+                    print(f"Deck after auto-hits:")
+                    print(deck)
+            
             # second loop : several runs per action-state pair
             for number_runs in range(self.number_runs_per_state_action_pair):
                 # donne des nouvelles
-                print(f"Action-Pair numéro {number_action_pair_state}, run numéro {number_runs} / {self.number_runs_per_state_action_pair}", end="\r")
+                ctr_iter += 1
+                elapsed_time = timeit.default_timer() - start
+                estimated_total_time = elapsed_time / ctr_iter * self.TOTAL
+                print(f"Elapsed time {elapsed_time:1f} / Estimated time {estimated_total_time:1f}, Action-Pair numéro {number_action_pair_state+1:9d} / {self.number_random_state_action_pairs:9d}, Total {ctr_iter:10d} runs / {self.TOTAL:10d}", end="\r") # Local run numéro {number_runs+1:9d} / {self.number_runs_per_state_action_pair:9d}, 
+                # print(f"elapsed time {elapsed_time:0f} / estimated time {estimated_total_time:0f}", end="\r")
                 # deep copy to avoid shallow copies
                 deck = deepcopy(start_deck)
+                
                 # first check : does the player has a Blackjack ?
                 if deck.player_sum == 21:
                     # player has a natural, ie Blackjack
+                    # force action to STICK !
+                    first_action = 1
                     # draw a second card for the dealer
                     deck._draw_dealer()
                     # check if dealer has a 21 too
@@ -457,22 +488,23 @@ class MCES():
                     list_returns.append(episode_return)
                     continue # next episode
                 else:
-                    # no blackjack, draw cards for player up to >= 12
-                    below = (deck.player_sum <= 11)
-                    auto_hits = False
-                    while below:
-                        auto_hits = True
-                        deck._draw_player()
-                        if self.verbose:
-                            print(f"Player sum below 11, drew another card")
-                        below = (deck.player_sum <= 11)
-                    if self.verbose:
-                        if auto_hits == False:
-                            print(f"No auto hit")
-                        else:
-                            print(f"Auto hits were performed")
-                            print(f"Deck after auto-hits:")
-                            print(deck)
+                    # # no blackjack, draw cards for player up to >= 12
+                    # below = (deck.player_sum <= 11)
+                    # auto_hits = False
+                    # while below:
+                    #     auto_hits = True
+                    #     deck._draw_player()
+                    #     if self.verbose:
+                    #         print(f"Player sum below 11, drew another card")
+                    #     below = (deck.player_sum <= 11)
+                    #     new_start_player_sum = deck.player_sum   # save for new reference point
+                    # if self.verbose:
+                    #     if auto_hits == False:
+                    #         print(f"No auto hit")
+                    #     else:
+                    #         print(f"Auto hits were performed")
+                    #         print(f"Deck after auto-hits:")
+                    #         print(deck)
                             
                     # then, apply first action
                     if first_action == 0: # HIT
@@ -484,34 +516,34 @@ class MCES():
                             list_returns.append(episode_return)
                             continue # next episode
                             
-                    # then apply policy : player draws when policy action is HIT
-                    player_sum, usable_ace, dealer_sum = deck.state
-                    dealer_show = deck.dealer_visible_card
-                    if usable_ace is True:
-                        id_usable_ace = 0
-                    else:
-                        id_usable_ace = 1
-                    policy_action = policy[player_sum-12, id_usable_ace, dealer_show-1]
-                    get_out = False
-                    while policy_action == 0:
-                        deck._draw_player()
+                        # after first action is HIT, then apply policy : player draws when policy action is HIT
                         player_sum, usable_ace, dealer_sum = deck.state
                         dealer_show = deck.dealer_visible_card
-                        if player_sum > 21:
-                            # player goes bust
-                            episode_return = self.LOSS
-                            list_returns.append(episode_return)
-                            get_out = True
-                            break # get out of while loop
                         if usable_ace is True:
                             id_usable_ace = 0
                         else:
                             id_usable_ace = 1
                         policy_action = policy[player_sum-12, id_usable_ace, dealer_show-1]
+                        get_out = False
+                        while policy_action == 0:
+                            deck._draw_player()
+                            player_sum, usable_ace, dealer_sum = deck.state
+                            dealer_show = deck.dealer_visible_card
+                            if player_sum > 21:
+                                # player goes bust
+                                episode_return = self.LOSS
+                                list_returns.append(episode_return)
+                                get_out = True
+                                break # get out of while loop
+                            if usable_ace is True:
+                                id_usable_ace = 0
+                            else:
+                                id_usable_ace = 1
+                            policy_action = policy[player_sum-12, id_usable_ace, dealer_show-1]
 
-                    if get_out is True:
-                        # exited from while, then exit to next loop
-                        continue
+                        if get_out is True:
+                            # exited from while, then exit to next loop
+                            continue
                     
                     # then, dealer's turn
                     if self.verbose:
@@ -552,31 +584,35 @@ class MCES():
                 id_usable_ace = 0
             else:
                 id_usable_ace = 1
+            # # if there has been some autoHIT at the beginning, use that as a reference point.
+            # if auto_hits is True:
+            #     player_sum = new_start_player_sum
+            # update q table action/state
             q_table[player_sum-12, id_usable_ace, dealer_show-1, first_action] = avg_return
             # update policy
             greedy_policy = np.argmax(q_table[player_sum-12, id_usable_ace, dealer_show-1,:])
             policy[player_sum-12, id_usable_ace, dealer_show-1] = greedy_policy
             # reporting 
-            if number_action_pair_state % 100 == 1:
-                print("-------------------------------------------------------")
-                print(f"Initial deck :")
-                print(start_deck)
-                act = "HIT" if first_action == 0 else "STICK"
-                print(f"First action : {act}")
-                # print(f"Returns = {list_returns}")
-                print(f"Average return = {avg_return}")
-                best_first = "HIT" if greedy_policy == 0 else "STICK"
-                print(f"Best first action : {best_first}")
+            # if number_action_pair_state % 100 == 1:
+            #     print("-------------------------------------------------------")
+            #     print(f"Initial deck :")
+            #     print(start_deck)
+            #     act = "HIT" if first_action == 0 else "STICK"
+            #     print(f"First action : {act}")
+            #     # print(f"Returns = {list_returns}")
+            #     print(f"Average return = {avg_return}")
+            #     best_first = "HIT" if greedy_policy == 0 else "STICK"
+            #     print(f"Best first action : {best_first}")
             
         return q_table, policy
             
-# test
+# run - UNCOMMENT to run
 
-global_rng = np.random.default_rng()
+# global_rng = np.random.default_rng(seed=42)
 
-mces = MCES()
+# mces = MCES()
 
-q_table, policy = mces.run()
+# q_table, policy = mces.run()
 
 # visualisation
 
@@ -585,24 +621,36 @@ print(f"-------------------------------------------------")
 print(f"--------- some examples after learning  ---------")
 print(f"-------------------------------------------------")
 
-N_SAMPLES = 10
+N_SAMPLES = 20
 
 for s in range(N_SAMPLES):
-    print(f"Sample {s}")
+    print()
+    print(f"Sample {s+1} / {N_SAMPLES}")
+    # random game
     deck = Deck()
+    # auto HIT if player's sum below 11
+    below = (deck.player_sum <= 11)
+    while below:
+        deck._draw_player()
+        below = (deck.player_sum <= 11)
+    # print net deck
     print(deck)
+    # net values
     player_sum, usable_ace, dealer_sum = deck.state
     dealer_show = deck.dealer_visible_card
+    # get policy, etc.
     if usable_ace is True:
         id_usable_ace = 0
     else:
         id_usable_ace = 1
+    # print values
+    qs = q_table[player_sum-12, id_usable_ace, dealer_show-1,:]
+    print(f"HIT : {qs[0]:.3f}, STICK : {qs[1]:.3f}")
     best_policy = np.argmax(q_table[player_sum-12, id_usable_ace, dealer_show-1,:])
     best_first = "HIT" if best_policy == 0 else "STICK"
     print(f"Best first action : {best_first}")
     state_value = np.max(q_table[player_sum-12, id_usable_ace, dealer_show-1,:]) 
-    print(f"State value : {state_value}")
-    
+    print(f"State value : {state_value:.3f}")
     
 # saves results
 
@@ -619,7 +667,7 @@ q_file = dir_path + "/BlackJack/q_table_file"
 with open(q_file, "rb") as f:
     q_table = pickle.load(f)
     
-print(q_table.shape)
+state_value = np.zeros(shape=(10,2,10))
 
 usable_ace_q_table = q_table[:,1,:,:]
 # print(usable_ace_q_table.shape)
@@ -628,8 +676,10 @@ for i in range(10):
     for j in range(10):
         p = usable_ace_q_table[i,j]
         if p[0] > p[1]:
+            state_value[i,0,j] = p[0]
             ua_policy[i,j] = "H"
         else:
+            state_value[i,0,j] = p[1]
             ua_policy[i,j] = "S"
             
 print(f"---------------------------------------")
@@ -644,11 +694,32 @@ for i in range(10):
     for j in range(10):
         p = not_usable_ace_q_table[i,j]
         if p[0] > p[1]:
+            state_value[i,1,j] = p[0]
             not_ua_policy[i,j] = "H"
         else:
+            state_value[i,1,j] = p[1]
             not_ua_policy[i,j] = "S"
             
 print(f"---------------------------------------")
 print(f"-- no usable ace policy ---------------")
 print(f"---------------------------------------")
 print(not_ua_policy)
+
+print(f"---------------------------------------")
+print(f"-- overall state values ---------------")
+print(f"---------------------------------------")
+
+print(f"usable ace")
+print(state_value[:,0,:])
+
+print()
+
+print(f"not usable ace")
+print(state_value[:,1,:])
+
+avg_gain = np.mean(state_value)
+
+print()
+print(f"---------------------------------------")
+print(f"-- Average gain = {avg_gain:3f} for 1€ -")
+print(f"---------------------------------------")
